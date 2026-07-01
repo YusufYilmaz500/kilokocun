@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KiloKocun — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+  :root {
+    --bg:       #0d0d0f;
+    --surface:  #16161a;
+    --card:     #1e1e24;
+    --border:   #2a2a33;
+    --accent:   #c8f542;
+    --accent2:  #5b8fff;
+    --text:     #f0f0f5;
+    --muted:    #6b6b80;
+    --danger:   #ff5f5f;
+    --good:     #42e8a0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .logo span { color: var(--accent); }
+
+  .user-badge {
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: var(--card);
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  /* LOADING / ERROR */
+  #loading, #error-msg {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  #error-msg { color: var(--danger); display: none; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* MAIN CONTENT */
+  #dashboard { display: none; padding: 24px 20px 0; max-width: 900px; margin: 0 auto; }
+
+  /* STAT CARDS */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+  .stat-card.blue::before  { background: var(--accent2); }
+  .stat-card.green::before { background: var(--good); }
+  .stat-card.red::before   { background: var(--danger); }
+
+  .stat-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .stat-unit {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-left: 4px;
+    font-weight: 400;
+  }
+  .stat-delta {
+    font-size: 0.72rem;
+    margin-top: 6px;
+    font-weight: 500;
+  }
+  .delta-down { color: var(--good); }
+  .delta-up   { color: var(--danger); }
+  .delta-same { color: var(--muted); }
+
+  /* CHART SECTION */
+  .chart-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 16px;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* PROGRESS BAR */
+  .progress-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 16px;
+    margin-bottom: 20px;
+  }
+  .progress-item { margin-bottom: 16px; }
+  .progress-item:last-child { margin-bottom: 0; }
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 7px;
+  }
+  .progress-name { color: var(--text); font-weight: 500; }
+  .progress-val  { color: var(--muted); }
+  .progress-bar-bg {
+    height: 6px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 1s ease;
+  }
+
+  /* LAST ENTRIES */
+  .entries-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 16px;
+    margin-bottom: 20px;
+  }
+  .entry-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+  }
+  .entry-row:last-child { border-bottom: none; }
+  .entry-date { color: var(--muted); font-size: 0.75rem; }
+  .entry-pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 0.72rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .pill.kilo   { border-color: #c8f54255; color: var(--accent); }
+  .pill.kalori { border-color: #5b8fff55; color: var(--accent2); }
+  .pill.uyku   { border-color: #42e8a055; color: var(--good); }
+
+  /* FOOTER */
+  .footer-note {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  @media (min-width: 600px) {
+    .stats-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Kilo<span>Kocun</span></div>
+  <div class="user-badge" id="user-badge">Yükleniyor…</div>
+</header>
+
+<div id="loading">
+  <div class="spinner"></div>
+  Veriler yükleniyor…
+</div>
+<div id="error-msg">⚠️ Veriler yüklenemedi. Sheets erişim izni açık mı?</div>
+
+<div id="dashboard">
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Son Kilo</div>
+      <div class="stat-value" id="stat-kilo">—<span class="stat-unit">kg</span></div>
+      <div class="stat-delta" id="stat-kilo-delta"></div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">Kalori</div>
+      <div class="stat-value" id="stat-kalori">—<span class="stat-unit">kcal</span></div>
+      <div class="stat-delta" id="stat-kalori-delta"></div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Uyku</div>
+      <div class="stat-value" id="stat-uyku">—<span class="stat-unit">sa</span></div>
+      <div class="stat-delta" id="stat-uyku-delta"></div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Protein</div>
+      <div class="stat-value" id="stat-protein">—<span class="stat-unit">g</span></div>
+      <div class="stat-delta" id="stat-protein-delta"></div>
+    </div>
+  </div>
+
+  <div class="chart-section">
+    <div class="section-title">Kilo Grafiği</div>
+    <div class="chart-wrap"><canvas id="kiloChart"></canvas></div>
+  </div>
+
+  <div class="chart-section">
+    <div class="section-title">Kalori & Protein Trendi</div>
+    <div class="chart-wrap"><canvas id="nutriChart"></canvas></div>
+  </div>
+
+  <div class="progress-section">
+    <div class="section-title">Günlük Hedefler</div>
+    <div class="progress-item">
+      <div class="progress-header">
+        <span class="progress-name">🔥 Kalori</span>
+        <span class="progress-val" id="prog-kalori-val">—</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="prog-kalori" style="background:var(--accent2);width:0%"></div>
+      </div>
+    </div>
+    <div class="progress-item">
+      <div class="progress-header">
+        <span class="progress-name">💪 Protein</span>
+        <span class="progress-val" id="prog-protein-val">—</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="prog-protein" style="background:var(--danger);width:0%"></div>
+      </div>
+    </div>
+    <div class="progress-item">
+      <div class="progress-header">
+        <span class="progress-name">🚶 Adım</span>
+        <span class="progress-val" id="prog-adim-val">—</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="prog-adim" style="background:var(--good);width:0%"></div>
+      </div>
+    </div>
+    <div class="progress-item">
+      <div class="progress-header">
+        <span class="progress-name">😴 Uyku</span>
+        <span class="progress-val" id="prog-uyku-val">—</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="prog-uyku" style="background:var(--accent);width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="entries-section">
+    <div class="section-title">Son Kayıtlar</div>
+    <div id="entries-list"></div>
+  </div>
+
+  <div class="footer-note">KiloKocun · Veriler Google Sheets'ten çekiliyor</div>
+</div>
+
+<script>
+const SHEET_ID  = '1Sd-VB9m3J2fKyhu4C4Z0vzEUYnOsx4eI4uv5P-vuWWA';
+const SHEET_NAME = 'Veriler';
+
+// Hedefler
+const GOALS = { kalori: 2000, protein: 150, adim: 10000, uyku: 8 };
+
+async function loadData() {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+  const resp = await fetch(url);
+  const text = await resp.text();
+  const json = JSON.parse(text.substring(47, text.length - 2));
+  const rows = json.table.rows;
+
+  // Get chat_id from URL param
+  const params = new URLSearchParams(window.location.search);
+  const userId = params.get('id');
+
+  // Parse rows
+  let data = rows.map(r => ({
+    chat_id: r.c[0]?.v?.toString().trim() || '',
+    tarih:   r.c[1]?.v || '',
+    kilo:    parseFloat(r.c[2]?.v) || 0,
+    uyku:    parseFloat(r.c[3]?.v) || 0,
+    adim:    parseFloat(r.c[4]?.v) || 0,
+    kalori:  parseFloat(r.c[5]?.v) || 0,
+    protein: parseFloat(r.c[6]?.v) || 0,
+  })).filter(r => r.chat_id !== '');
+
+  // Filter by user if id param present
+  if (userId) {
+    data = data.filter(r => r.chat_id === userId);
+    document.getElementById('user-badge').textContent = `ID: ${userId}`;
+  } else {
+    document.getElementById('user-badge').textContent = 'Tüm Kayıtlar';
+  }
+
+  // Only rows with actual data (kilo > 0 or kalori > 0)
+  const meaningful = data.filter(r => r.kilo > 0 || r.kalori > 0 || r.uyku > 0);
+
+  return meaningful;
+}
+
+function formatDate(raw) {
+  if (!raw) return '—';
+  const s = raw.toString();
+  // "2026-06-29T11:00" etc
+  const d = new Date(s);
+  if (isNaN(d)) return s.substring(0, 10);
+  return d.toLocaleDateString('tr-TR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+function delta(curr, prev, unit='', inverse=false) {
+  if (!prev || prev === 0) return '';
+  const diff = curr - prev;
+  if (diff === 0) return `<span class="delta-same">= Değişmedi</span>`;
+  const isGood = inverse ? diff > 0 : diff < 0;
+  const cls = isGood ? 'delta-down' : 'delta-up';
+  const sign = diff > 0 ? '+' : '';
+  return `<span class="${cls}">${sign}${diff.toFixed(1)}${unit}</span>`;
+}
+
+function setProgress(id, valId, value, goal, unit) {
+  const pct = Math.min(100, Math.round((value / goal) * 100));
+  document.getElementById(id).style.width = pct + '%';
+  document.getElementById(valId).textContent = value > 0 ? `${value} / ${goal} ${unit}` : `— / ${goal} ${unit}`;
+}
+
+function renderCharts(data) {
+  // Get unique dates — take last value per date
+  const byDate = {};
+  data.forEach(r => {
+    const d = r.tarih.toString().substring(0, 10);
+    byDate[d] = r;
+  });
+  const dates = Object.keys(byDate).sort();
+  const rows  = dates.map(d => byDate[d]);
+
+  const labels = dates.map(d => {
+    const dt = new Date(d);
+    return dt.toLocaleDateString('tr-TR', { day:'numeric', month:'short' });
+  });
+
+  const chartDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#2a2a33' }, ticks: { color: '#6b6b80', font: { size: 10 } } },
+      y: { grid: { color: '#2a2a33' }, ticks: { color: '#6b6b80', font: { size: 10 } } },
+    }
+  };
+
+  // Kilo chart
+  new Chart(document.getElementById('kiloChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: rows.map(r => r.kilo || null),
+        borderColor: '#c8f542',
+        backgroundColor: 'rgba(200,245,66,0.08)',
+        borderWidth: 2,
+        pointBackgroundColor: '#c8f542',
+        pointRadius: 4,
+        tension: 0.35,
+        fill: true,
+        spanGaps: true,
+      }]
+    },
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: (Math.min(...rows.map(r=>r.kilo).filter(Boolean)) - 3) } } }
+  });
+
+  // Nutri chart
+  new Chart(document.getElementById('nutriChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Kalori',
+          data: rows.map(r => r.kalori || null),
+          backgroundColor: 'rgba(91,143,255,0.7)',
+          borderRadius: 4,
+        },
+        {
+          label: 'Protein (×10)',
+          data: rows.map(r => r.protein ? r.protein * 10 : null),
+          backgroundColor: 'rgba(255,95,95,0.6)',
+          borderRadius: 4,
+        }
+      ]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#6b6b80', font: { size: 11 }, boxWidth: 12 }
+        }
+      }
+    }
+  });
+}
+
+function renderEntries(data) {
+  const last = data.slice(-10).reverse();
+  const el = document.getElementById('entries-list');
+  if (last.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:12px 0">Henüz veri yok.</div>';
+    return;
+  }
+  el.innerHTML = last.map(r => `
+    <div class="entry-row">
+      <span class="entry-date">${formatDate(r.tarih)}</span>
+      <div class="entry-pills">
+        ${r.kilo    ? `<span class="pill kilo">${r.kilo} kg</span>` : ''}
+        ${r.kalori  ? `<span class="pill kalori">${r.kalori} kal</span>` : ''}
+        ${r.uyku    ? `<span class="pill uyku">${r.uyku} sa</span>` : ''}
+        ${r.protein ? `<span class="pill">${r.protein}g pro</span>` : ''}
+        ${r.adim    ? `<span class="pill">${r.adim.toLocaleString('tr')} adım</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function init() {
+  try {
+    const data = await loadData();
+
+    if (data.length === 0) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error-msg').style.display = 'block';
+      document.getElementById('error-msg').textContent = 'Bu kullanıcı için henüz veri bulunamadı.';
+      return;
+    }
+
+    // Latest meaningful row
+    const latest = data[data.length - 1];
+    const prev   = data.length > 1 ? data[data.length - 2] : null;
+
+    // Stats
+    document.getElementById('stat-kilo').innerHTML    = `${latest.kilo || '—'}<span class="stat-unit">kg</span>`;
+    document.getElementById('stat-kalori').innerHTML  = `${latest.kalori || '—'}<span class="stat-unit">kcal</span>`;
+    document.getElementById('stat-uyku').innerHTML    = `${latest.uyku || '—'}<span class="stat-unit">sa</span>`;
+    document.getElementById('stat-protein').innerHTML = `${latest.protein || '—'}<span class="stat-unit">g</span>`;
+
+    if (prev) {
+      document.getElementById('stat-kilo-delta').innerHTML    = delta(latest.kilo, prev.kilo, ' kg', false);
+      document.getElementById('stat-kalori-delta').innerHTML  = delta(latest.kalori, prev.kalori, ' kal', false);
+      document.getElementById('stat-uyku-delta').innerHTML    = delta(latest.uyku, prev.uyku, ' sa', true);
+      document.getElementById('stat-protein-delta').innerHTML = delta(latest.protein, prev.protein, 'g', true);
+    }
+
+    // Progress
+    setProgress('prog-kalori',  'prog-kalori-val',  latest.kalori,  GOALS.kalori,  'kcal');
+    setProgress('prog-protein', 'prog-protein-val', latest.protein, GOALS.protein, 'g');
+    setProgress('prog-adim',    'prog-adim-val',    latest.adim,    GOALS.adim,    'adım');
+    setProgress('prog-uyku',    'prog-uyku-val',    latest.uyku,    GOALS.uyku,    'sa');
+
+    renderCharts(data);
+    renderEntries(data);
+
+    document.getElementById('loading').style.display   = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+  } catch(e) {
+    document.getElementById('loading').style.display   = 'none';
+    document.getElementById('error-msg').style.display = 'block';
+    console.error(e);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
